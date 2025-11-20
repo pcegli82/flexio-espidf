@@ -5,6 +5,7 @@
 
 extern "C" {
 #include "driver/i2c.h"
+#include "esp_err.h"
 }
 
 /*****************************************************************
@@ -45,6 +46,6 @@ private:
     esp_err_t writeReg8 (uint8_t reg, uint8_t value);
 
     /* ------ Initialisierung ----------------------------------- */
-    void configurePCAL6416();
-    void configureInterruptMask();
+    esp_err_t configurePCAL6416();
+    esp_err_t configureInterruptMask();
 };

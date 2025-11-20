@@ -20,6 +20,7 @@ FlexIO::FlexIO()
 bool FlexIO::begin(int sclPin, int sdaPin, int intPin,
                    const bool flexIOConfig[8],
                    uint8_t i2cAddr,
+                   conf.master.clk_speed = 100000;   // statt 400000
                    i2c_port_t port)
 {
     _sclPin  = sclPin;
@@ -63,18 +64,36 @@ esp_err_t FlexIO::readReg8(uint8_t reg, uint8_t *value)
 {
     if (!value) return ESP_ERR_INVALID_ARG;
 
-    i2c_cmd_handle_t cmd = i2c_cmd_link_create();
+    esp_err_t err;
+    i2c_cmd_handle_t cmd;
+
+    // 1) Registerpointer setzen (WRITE + STOP)
+    cmd = i2c_cmd_link_create();
     i2c_master_start(cmd);
     i2c_master_write_byte(cmd, (_i2cAddr << 1) | I2C_MASTER_WRITE, true);
     i2c_master_write_byte(cmd, reg, true);
+    i2c_master_stop(cmd);
+
+    err = i2c_master_cmd_begin(_port, cmd, pdMS_TO_TICKS(10));
+    i2c_cmd_link_delete(cmd);
+    if (err != ESP_OK) {
+        ESP_LOGW(TAG, "readReg8(0x%02X) set pointer failed: %s",
+                 reg, esp_err_to_name(err));
+        return err;
+    }
+
+    // 2) Registerwert lesen (neue Transaktion, wie Wire.requestFrom)
+    cmd = i2c_cmd_link_create();
     i2c_master_start(cmd);
     i2c_master_write_byte(cmd, (_i2cAddr << 1) | I2C_MASTER_READ, true);
     i2c_master_read_byte(cmd, value, I2C_MASTER_NACK);
     i2c_master_stop(cmd);
-    esp_err_t err = i2c_master_cmd_begin(_port, cmd, pdMS_TO_TICKS(10));
+
+    err = i2c_master_cmd_begin(_port, cmd, pdMS_TO_TICKS(10));
     i2c_cmd_link_delete(cmd);
     if (err != ESP_OK) {
-        ESP_LOGW(TAG, "readReg8(0x%02X) failed: %s", reg, esp_err_to_name(err));
+        ESP_LOGW(TAG, "readReg8(0x%02X) read failed: %s",
+                 reg, esp_err_to_name(err));
     }
     return err;
 }
